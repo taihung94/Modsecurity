@@ -1,0 +1,5 @@
+{
+  "name": "ModSecurity AI Analyst",
+  "description": "An interactive tool powered by Gemini to learn, test, and analyze ModSecurity rules. Input a request payload and a SecRule to see a detailed breakdown, simulation, and security analysis.",
+  "requestFramePermissions": []
+}
