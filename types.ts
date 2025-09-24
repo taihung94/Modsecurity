@@ -1,14 +1,16 @@
-
-export interface SuggestedPayload {
-  payload: string;
-  description: string;
+export interface TriggeredRule {
+  ruleId: string;
+  ruleMessage: string;
+  matchedData: string;
+  diagnosis: 'True Positive' | 'False Positive';
+  explanation: string;
+  severity: string;
+  suggestedRegex?: string;
+  whitelistRule?: string;
 }
 
 export interface AnalysisResult {
-  decision: 'BLOCKED' | 'ALLOWED' | 'ERROR' | 'UNKNOWN';
-  explanation: string;
-  ruleBreakdown: string;
-  suggestedPayloads: SuggestedPayload[];
+  overallRisk: 'High' | 'Medium' | 'Low' | 'None' | 'ERROR';
+  summary: string;
+  triggeredRules: TriggeredRule[];
 }
-
-export type AnalysisSection = 'decision' | 'explanation' | 'ruleBreakdown' | 'suggestedPayloads';

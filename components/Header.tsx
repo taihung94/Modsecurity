@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ShieldIcon } from './icons/ShieldIcon';
 
@@ -12,7 +11,7 @@ const Header: React.FC = () => {
         ModSecurity AI Analyst
       </h1>
       <p className="mt-4 text-lg max-w-2xl mx-auto text-gray-400">
-        Test and understand Web Application Firewall rules in real-time. Enter a payload and a rule to get an instant, AI-powered security analysis.
+        Diagnose HTTP requests, identify threats, and generate ModSecurity whitelist rules to resolve false positives.
       </p>
     </header>
   );

@@ -1,68 +1,69 @@
-
 import React, { useState, useCallback } from 'react';
 import { AnalysisResult } from '../types';
-import { analyzeRuleAndPayload } from '../services/geminiService';
+import { analyzeHttpRequest } from '../services/geminiService';
 import { BrainIcon } from './icons/BrainIcon';
 import AnalysisCard from './AnalysisCard';
-import { CodeIcon } from './icons/CodeIcon';
-import { TestTubeIcon } from './icons/TestTubeIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+import { FlagIcon } from './icons/FlagIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { WrenchIcon } from './icons/WrenchIcon';
+
+const defaultRequest = `POST /api/v1/update HTTP/1.1
+Host: example.com
+Content-Type: application/json
+Content-Length: 68
+
+{"comment": "The new update is great, but select options are limited."}`;
+
 
 const RuleTester: React.FC = () => {
-  const [rule, setRule] = useState<string>('SecRule ARGS "@rx (?i)(?:select|union|insert|update|delete).*(?:from|into|where)" "id:101,phase:2,t:none,log,deny,msg:\'SQL Injection Attempt\'"');
-  const [payload, setPayload] = useState<string>('product_id=10; select user, password from users');
+  const [request, setRequest] = useState<string>(defaultRequest);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rule.trim() || !payload.trim()) {
-      setError("Both rule and payload fields are required.");
+    if (!request.trim()) {
+      setError("HTTP Request field is required.");
       return;
     }
     setIsLoading(true);
     setError(null);
     setAnalysis(null);
 
-    const result = await analyzeRuleAndPayload(rule, payload);
-    if (result.decision === 'ERROR') {
-        setError(result.explanation);
+    const result = await analyzeHttpRequest(request);
+    if (result.overallRisk === 'ERROR') {
+        setError(result.summary);
     } else {
         setAnalysis(result);
     }
     setIsLoading(false);
-  }, [rule, payload]);
+  }, [request]);
 
-  const decisionColor = analysis?.decision === 'BLOCKED' ? 'text-red-400' : 
-                        analysis?.decision === 'ALLOWED' ? 'text-green-400' : 'text-gray-400';
-  const decisionBg = analysis?.decision === 'BLOCKED' ? 'bg-red-500/10' :
-                     analysis?.decision === 'ALLOWED' ? 'bg-green-500/10' : 'bg-gray-500/10';
+  const riskColor = analysis?.overallRisk === 'High' ? 'text-red-400' : 
+                    analysis?.overallRisk === 'Medium' ? 'text-yellow-400' :
+                    analysis?.overallRisk === 'Low' ? 'text-cyan-400' : 'text-gray-400';
+  const riskBg = analysis?.overallRisk === 'High' ? 'bg-red-500/10' :
+                 analysis?.overallRisk === 'Medium' ? 'bg-yellow-500/10' :
+                 analysis?.overallRisk === 'Low' ? 'bg-cyan-500/10' : 'bg-gray-500/10';
+
 
   return (
     <div className="space-y-8">
       <form onSubmit={handleSubmit} className="p-6 bg-gray-800/50 border border-gray-700 rounded-lg shadow-lg backdrop-blur-sm">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label htmlFor="payload" className="text-sm font-medium text-gray-300">HTTP Request Payload</label>
-            <textarea
-              id="payload"
-              value={payload}
-              onChange={(e) => setPayload(e.target.value)}
-              placeholder="e.g., id=1' or '1'='1"
-              className="font-fira-code w-full h-32 p-3 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors"
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="rule" className="text-sm font-medium text-gray-300">ModSecurity Rule (SecRule)</label>
-            <textarea
-              id="rule"
-              value={rule}
-              onChange={(e) => setRule(e.target.value)}
-              placeholder="e.g., SecRule ARGS \"@contains ' or 1=1\" \"id:101,...\""
-              className="font-fira-code w-full h-32 p-3 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors"
-            />
-          </div>
+        <div className="space-y-2">
+          <label htmlFor="request" className="text-sm font-medium text-gray-300">Full HTTP Request</label>
+          <textarea
+            id="request"
+            value={request}
+            onChange={(e) => setRequest(e.target.value)}
+            placeholder="Paste your full HTTP request here..."
+            className="font-fira-code w-full h-60 p-3 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors"
+          />
         </div>
+
         <div className="mt-6 flex justify-center">
           <button
             type="submit"
@@ -80,7 +81,7 @@ const RuleTester: React.FC = () => {
             ) : (
               <>
                 <BrainIcon className="w-5 h-5 mr-2" />
-                Analyze
+                Diagnose Request
               </>
             )}
           </button>
@@ -91,41 +92,97 @@ const RuleTester: React.FC = () => {
 
       {isLoading && (
         <div className="text-center text-gray-400 animate-pulse">
-            <p>Gemini is analyzing the rule... this may take a moment.</p>
+            <p>Gemini is running diagnostics... this may take a moment.</p>
         </div>
       )}
 
       {analysis && (
         <div className="space-y-6 animate-fade-in">
-          <AnalysisCard title="Analysis Result" icon={<BrainIcon />}>
-              <div className="flex items-center space-x-4">
-                  <span className={`px-4 py-2 rounded-full font-bold text-lg ${decisionBg} ${decisionColor}`}>
-                      {analysis.decision}
-                  </span>
-                  <p className="text-gray-300">{analysis.decision === 'BLOCKED' ? 'The payload was blocked by the rule.' : 'The payload was allowed by the rule.'}</p>
-              </div>
-          </AnalysisCard>
-          
-          <AnalysisCard title="Detailed Explanation" icon={<BrainIcon />}>
-              <div className="prose prose-invert prose-p:text-gray-300 prose-strong:text-gray-100" dangerouslySetInnerHTML={{ __html: analysis.explanation.replace(/\n/g, '<br />') }} />
-          </AnalysisCard>
+            <AnalysisCard title="Overall Assessment" icon={<BrainIcon />}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-3 sm:space-y-0">
+                    <span className={`px-4 py-2 rounded-full font-bold text-lg ${riskBg} ${riskColor}`}>
+                        Risk: {analysis.overallRisk}
+                    </span>
+                    <p className="text-gray-300">{analysis.summary}</p>
+                </div>
+            </AnalysisCard>
 
-          <AnalysisCard title="Rule Breakdown" icon={<CodeIcon />}>
-             <div className="prose prose-invert prose-p:text-gray-300 prose-strong:text-gray-100" dangerouslySetInnerHTML={{ __html: analysis.ruleBreakdown.replace(/\n/g, '<br />') }} />
-          </AnalysisCard>
+            {analysis.triggeredRules.length > 0 ? (
+            analysis.triggeredRules.map((rule, index) => (
+                <React.Fragment key={index}>
+                    <AnalysisCard
+                        title={`Triggered Rule: ${rule.ruleId}`}
+                        icon={<FlagIcon />}
+                    >
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                {rule.diagnosis === 'True Positive' ? (
+                                    <CheckCircleIcon className="w-6 h-6 text-red-400" />
+                                ) : (
+                                    <XCircleIcon className="w-6 h-6 text-yellow-400" />
+                                )}
+                                <h4 className={`text-xl font-bold ${rule.diagnosis === 'True Positive' ? 'text-red-400' : 'text-yellow-400'}`}>
+                                    {rule.diagnosis}
+                                </h4>
+                            </div>
+                            <span className="px-3 py-1 text-sm font-semibold text-gray-300 bg-gray-700 rounded-full">{rule.severity}</span>
+                        </div>
 
-          <AnalysisCard title="Example Malicious Payloads" icon={<TestTubeIcon />}>
-            <ul className="space-y-4">
-              {analysis.suggestedPayloads.map((p, index) => (
-                <li key={index} className="p-4 bg-gray-900/70 border border-gray-700 rounded-md">
-                  <p className="font-fira-code text-cyan-400 break-all">{p.payload}</p>
-                  <p className="mt-2 text-sm text-gray-400">{p.description}</p>
-                </li>
-              ))}
-            </ul>
-          </AnalysisCard>
+                        <div>
+                        <p className="text-sm font-semibold text-gray-400 mb-1">Rule Message</p>
+                        <p className="text-gray-200">{rule.ruleMessage}</p>
+                        </div>
+
+                        <div>
+                        <p className="text-sm font-semibold text-gray-400 mb-1">Matched Data</p>
+                        <pre className="p-3 bg-gray-900/70 border border-gray-700 rounded-md font-fira-code text-cyan-300 text-sm overflow-x-auto">
+                            <code>{rule.matchedData}</code>
+                        </pre>
+                        </div>
+
+                        <div>
+                        <p className="text-sm font-semibold text-gray-400 mb-1">Analyst Explanation</p>
+                        <div className="prose prose-invert prose-p:text-gray-300" dangerouslySetInnerHTML={{ __html: rule.explanation.replace(/\n/g, '<br />') }} />
+                        </div>
+                    </div>
+                    </AnalysisCard>
+                    
+                    {rule.diagnosis === 'False Positive' && rule.whitelistRule && (
+                        <AnalysisCard
+                            title="Mitigation Suggestion"
+                            icon={<WrenchIcon />}
+                        >
+                            <div className="space-y-4">
+                                {rule.suggestedRegex && (
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-400 mb-1">Suggested Regex</p>
+                                    <pre className="p-3 bg-gray-900/70 border border-gray-700 rounded-md font-fira-code text-green-300 text-sm overflow-x-auto">
+                                        <code>{rule.suggestedRegex}</code>
+                                    </pre>
+                                </div>
+                                )}
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-400 mb-1">Whitelist Rule Snippet</p>
+                                    <pre className="p-3 bg-gray-900/70 border border-gray-700 rounded-md font-fira-code text-green-300 text-sm overflow-x-auto">
+                                        <code>{rule.whitelistRule}</code>
+                                    </pre>
+                                </div>
+                            </div>
+                        </AnalysisCard>
+                    )}
+                </React.Fragment>
+            ))
+            ) : (
+                analysis.overallRisk !== 'ERROR' && (
+                    <AnalysisCard title="No Rules Triggered" icon={<ShieldIcon className="w-6 h-6" />}>
+                        <p className="text-gray-300">The request was analyzed against the OWASP Core Rule Set and did not trigger any security rules.</p>
+                    </AnalysisCard>
+                )
+            )}
         </div>
-      )}
+        )}
+
     </div>
   );
 };
